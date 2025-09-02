@@ -12,12 +12,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-# Placeholders for your API ID, API Hash, and 2Captcha API Key
-api_id = 26973152  # Replace with your API ID
-api_hash = "3359532bba54756f12424148064e3e4d"  # Replace with your API Hash
+# Placeholders for your API ID, API Hash, Bot Token, and 2Captcha API Key
+api_id = 26973152  # Your API ID
+api_hash = "3359532bba54756f12424148064e3e4d"  # Your API Hash
+bot_token = "8019263869:AAEL67NjDyOe15FaVpwG-4leuCWyFNZApx0"  # Replace with your Bot Token
 two_captcha_key = "a25a82134f896a53a65698212377c022"  # Replace with your 2Captcha API key
 
-app = Client("my_account", api_id=api_id, api_hash=api_hash)
+# Assuming you have a bot session file, use a session name like "bot_session"
+app = Client("bot_session", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 mail_bot_username = "@fakemailbot"
 mail_chat_id = None
