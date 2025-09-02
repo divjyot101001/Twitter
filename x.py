@@ -11,6 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import os
 
 # Placeholders for your API ID, API Hash, Bot Token, and 2Captcha API Key
 api_id = 26973152  # Your API ID
@@ -257,4 +258,7 @@ async def create_account(client: Client, message: Message):
         app.remove_handler(handler)
 
 if __name__ == "__main__":
+    session_file = "bot_session.session"
+    if os.path.exists(session_file):
+        os.remove(session_file)
     app.run()
