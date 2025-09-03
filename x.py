@@ -3,7 +3,7 @@ import random
 import string
 import time
 import requests
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import Message
 from pyrogram.handlers import MessageHandler
 import undetected_chromedriver as uc
@@ -19,16 +19,16 @@ api_hash = "3359532bba54756f12424148064e3e4d"  # Your API Hash
 bot_token = "8019263869:AAEL67NjDyOe15FaVpwG-4leuCWyFNZApx0"  # Replace with your Bot Token
 two_captcha_key = "a25a82134f896a53a65698212377c022"  # Replace with your 2Captcha API key
 
-# Assuming you have a bot session file, use a session name like "user_session"
-app = Client("user_session", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
-
 mail_bot_username = "@fakemailbot"
 mail_chat_id = None
+
+user_client = Client("user_session", api_id=api_id, api_hash=api_hash)
+bot_client = Client("bot_session", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 async def get_mail_chat_id():
     global mail_chat_id
     if not mail_chat_id:
-        chat = await app.get_chat(mail_bot_username)
+        chat = await user_client.get_chat(mail_bot_username)
         mail_chat_id = chat.id
     return mail_chat_id
 
@@ -69,7 +69,7 @@ def solve_arkose(sitekey, pageurl):
         if 'ERROR' in res.get('request', ''):
             return None
 
-@app.on_message(filters.command("start") & filters.private)
+@bot_client.on_message(filters.command("start") & filters.private)
 async def start(client: Client, message: Message):
     await message.reply_text(
         "Welcome! This bot creates fresh X accounts.\n"
@@ -78,24 +78,24 @@ async def start(client: Client, message: Message):
         "/create - Create a new X account"
     )
 
-@app.on_message(filters.command("create") & filters.private)
+@bot_client.on_message(filters.command("create") & filters.private)
 async def create_account(client: Client, message: Message):
     user_id = message.from_user.id
-    await message.reply_text("Starting account creation process...")
+    await bot_client.send_message(user_id, "Starting account creation process...")
 
-    # Interact with fake mail bot
+    # Interact with fake mail bot using user_client
     mail_chat = await get_mail_chat_id()
     
     # Send /generate
-    await client.send_message(mail_chat, "/generate")
-    await client.send_message(user_id, "Sent /generate to @fakemailbot")
+    await user_client.send_message(mail_chat, "/generate")
+    await bot_client.send_message(user_id, "Sent /generate to @fakemailbot")
 
     # Queue for messages from mail bot
     queue = asyncio.Queue()
     async def mail_handler(cl, msg: Message):
         await queue.put(msg)
 
-    handler = app.add_handler(MessageHandler(mail_handler, filters=filters.chat(mail_chat)))
+    handler = user_client.add_handler(MessageHandler(mail_handler, filters=filters.chat(mail_chat)))
 
     try:
         # Wait for message with inline buttons
@@ -104,9 +104,9 @@ async def create_account(client: Client, message: Message):
             # Select random option (assuming 2 options)
             button_index = random.randint(0, len(inline_msg.reply_markup.inline_keyboard) - 1)
             await inline_msg.click(button_index)
-            await client.send_message(user_id, f"Selected random domain option {button_index + 1}")
+            await bot_client.send_message(user_id, f"Selected random domain option {button_index + 1}")
         else:
-            await client.send_message(user_id, "No inline buttons found.")
+            await bot_client.send_message(user_id, "No inline buttons found.")
             return
 
         # Wait for email message
@@ -114,16 +114,16 @@ async def create_account(client: Client, message: Message):
         email_text = email_msg.text
         if "Your new fakemail address is" in email_text:
             email = email_text.split("Your new fakemail address is ")[1].split("\n")[0].strip()
-            await client.send_message(user_id, f"Generated email: {email}")
+            await bot_client.send_message(user_id, f"Generated email: {email}")
         else:
-            await client.send_message(user_id, "Failed to get email.")
+            await bot_client.send_message(user_id, "Failed to get email.")
             return
 
         # Send /id and consume the response
-        await client.send_message(mail_chat, "/id")
-        await client.send_message(user_id, "Sent /id to @fakemailbot")
+        await user_client.send_message(mail_chat, "/id")
+        await bot_client.send_message(user_id, "Sent /id to @fakemailbot")
         id_msg = await queue.get()  # Consume /id response
-        await client.send_message(user_id, "Received /id response.")
+        await bot_client.send_message(user_id, "Received /id response.")
 
         # Now start undetected Chrome for X signup
         options = uc.ChromeOptions()
@@ -135,18 +135,18 @@ async def create_account(client: Client, message: Message):
 
         try:
             driver.get("https://x.com/i/flow/signup")
-            await client.send_message(user_id, "Opened X signup page.")
+            await bot_client.send_message(user_id, "Opened X signup page.")
 
             # Enter name
             random_name = generate_random_name()
             name_input = wait.until(EC.presence_of_element_located((By.NAME, "name")))
             name_input.send_keys(random_name)
-            await client.send_message(user_id, f"Entered name: {random_name}")
+            await bot_client.send_message(user_id, f"Entered name: {random_name}")
 
             # Enter email
             email_input = wait.until(EC.presence_of_element_located((By.NAME, "email")))
             email_input.send_keys(email)
-            await client.send_message(user_id, f"Entered email: {email}")
+            await bot_client.send_message(user_id, f"Entered email: {email}")
 
             # Enter DOB
             month, day, year = generate_random_dob()
@@ -156,43 +156,43 @@ async def create_account(client: Client, message: Message):
             day_select.send_keys(str(day))
             year_select = driver.find_element(By.ID, "SELECTOR_3")
             year_select.send_keys(str(year))
-            await client.send_message(user_id, f"Entered DOB: {month}/{day}/{year}")
+            await bot_client.send_message(user_id, f"Entered DOB: {month}/{day}/{year}")
 
             # Click Next
             next_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[text()="Next"]/ancestor::div[@role="button"]')))
             next_button.click()
-            await client.send_message(user_id, "Clicked Next.")
+            await bot_client.send_message(user_id, "Clicked Next.")
 
             # Customize experience Next
             try:
                 next_customize = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[text()="Next"]/ancestor::div[@role="button"]')))
                 next_customize.click()
-                await client.send_message(user_id, "Clicked Next on customize.")
+                await bot_client.send_message(user_id, "Clicked Next on customize.")
             except TimeoutException:
                 pass
 
             # Click Sign up
             signup_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[text()="Sign up"]/ancestor::div[@role="button"]')))
             signup_button.click()
-            await client.send_message(user_id, "Clicked Sign up. Waiting for OTP...")
+            await bot_client.send_message(user_id, "Clicked Sign up. Waiting for OTP...")
 
             # Check for Captcha
             try:
                 arkose_div = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '[data-apikey]')))
                 sitekey = arkose_div.get_attribute('data-apikey')
-                await client.send_message(user_id, "Captcha detected. Solving...")
+                await bot_client.send_message(user_id, "Captcha detected. Solving...")
                 token = solve_arkose(sitekey, driver.current_url)
                 if token:
                     driver.execute_script(f'document.getElementById("enforcementToken").value = "{token}";')
                     # Assuming the token input id, may need adjustment
                     # Re-click signup or submit
                     signup_button.click()
-                    await client.send_message(user_id, "Captcha solved and submitted.")
+                    await bot_client.send_message(user_id, "Captcha solved and submitted.")
                 else:
-                    await client.send_message(user_id, "Failed to solve captcha.")
+                    await bot_client.send_message(user_id, "Failed to solve captcha.")
                     return
             except TimeoutException:
-                await client.send_message(user_id, "No captcha detected.")
+                await bot_client.send_message(user_id, "No captcha detected.")
 
             # Wait for OTP message from mail bot
             time.sleep(5)  # Give time for email to arrive
@@ -204,61 +204,64 @@ async def create_account(client: Client, message: Message):
                     if "Please enter this verification code to get started on X:" in line:
                         otp = lines[i+1].strip()
                         if len(otp) == 6 and otp.isdigit():
-                            await client.send_message(user_id, f"Received OTP: {otp}")
+                            await bot_client.send_message(user_id, f"Received OTP: {otp}")
                             break
                 else:
-                    await client.send_message(user_id, "Invalid OTP format.")
+                    await bot_client.send_message(user_id, "Invalid OTP format.")
                     return
             else:
-                await client.send_message(user_id, "No OTP found in message.")
+                await bot_client.send_message(user_id, "No OTP found in message.")
                 return
 
             # Enter OTP
             otp_input = wait.until(EC.presence_of_element_located((By.NAME, "code")))
             otp_input.send_keys(otp)
-            await client.send_message(user_id, "Entered OTP.")
+            await bot_client.send_message(user_id, "Entered OTP.")
 
             # Click Next/Verify
             verify_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[contains(text(), "Next") or contains(text(), "Verify")]/ancestor::div[@role="button"]')))
             verify_button.click()
-            await client.send_message(user_id, "Clicked Verify/Next.")
+            await bot_client.send_message(user_id, "Clicked Verify/Next.")
 
             # Enter password
             random_pass = generate_random_password()
             password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
             password_input.send_keys(random_pass)
-            await client.send_message(user_id, f"Entered password: {random_pass}")
+            await bot_client.send_message(user_id, f"Entered password: {random_pass}")
 
             # Click Next
             next_pass_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[text()="Next"]/ancestor::div[@role="button"]')))
             next_pass_button.click()
-            await client.send_message(user_id, "Clicked Next after password.")
+            await bot_client.send_message(user_id, "Clicked Next after password.")
 
             # Optionally set username if prompted
             try:
                 username_input = wait.until(EC.presence_of_element_located((By.NAME, "username")))
                 random_username = generate_random_username()
                 username_input.send_keys(random_username)
-                await client.send_message(user_id, f"Entered username: @{random_username}")
+                await bot_client.send_message(user_id, f"Entered username: @{random_username}")
                 next_username = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[text()="Next"]/ancestor::div[@role="button"]')))
                 next_username.click()
-                await client.send_message(user_id, "Clicked Next after username.")
+                await bot_client.send_message(user_id, "Clicked Next after username.")
             except TimeoutException:
-                await client.send_message(user_id, "No username prompt, proceeding.")
+                await bot_client.send_message(user_id, "No username prompt, proceeding.")
 
             # Close browser
             driver.quit()
-            await client.send_message(user_id, f"Account created successfully! Email: {email}\nPassword: {random_pass}\nLogin to set further details if needed.")
+            await bot_client.send_message(user_id, f"Account created successfully! Email: {email}\nPassword: {random_pass}\nLogin to set further details if needed.")
 
         except Exception as e:
-            await client.send_message(user_id, f"Error during account creation: {str(e)}")
+            await bot_client.send_message(user_id, f"Error during account creation: {str(e)}")
             driver.quit()
 
     finally:
-        app.remove_handler(handler)
+        user_client.remove_handler(handler)
 
 if __name__ == "__main__":
-    session_file = "user_session.session"
-    if os.path.exists(session_file):
-        os.remove(session_file)
-    app.run()
+    user_session_file = "user_session.session"
+    bot_session_file = "bot_session.session"
+    if os.path.exists(user_session_file):
+        os.remove(user_session_file)
+    if os.path.exists(bot_session_file):
+        os.remove(bot_session_file)
+    asyncio.run(asyncio.gather(user_client.start(), bot_client.start(), idle()))
